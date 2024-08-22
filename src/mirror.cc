@@ -36,13 +36,11 @@ class gimple_pass : public gimple_opt_pass {
 
         gimple_pass (const pass_data& data, gcc::context *ctxt) : gimple_opt_pass (data, ctxt) {}
 
-        bool gate (function* gate_fun)
-        {
+        bool gate (function* gate_fun) {
             return true;
         }
 
-        unsigned int execute(function* exec_fun)
-        {
+        unsigned int execute(function* exec_fun) {
             return test();
         }
 };
@@ -94,10 +92,9 @@ int plugin_init(struct plugin_name_args *plugin_info, struct plugin_gcc_version 
         .todo_flags_start = 0,
         .todo_flags_finish = TODO_update_ssa | TODO_cleanup_cfg
     };
-    gimple_pass pass = gimple_pass(pass_data, g);
 
     struct register_pass_info pass_info = {
-        .pass = &pass,
+        .pass = new gimple_pass(pass_data, g),
         .reference_pass_name = "ssa",
         .ref_pass_instance_number = 1,
         .pos_op = PASS_POS_INSERT_AFTER
