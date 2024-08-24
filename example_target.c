@@ -1,6 +1,10 @@
 #include <stdio.h>
 
-__attribute__((mirrored)) void test(void) {
+struct test_struct {
+    int a;
+} __attribute__((mirrored));
+
+__attribute__((mirrored)) void test_function(void) {
     int a;
     a += 1;
     return;
@@ -8,7 +12,6 @@ __attribute__((mirrored)) void test(void) {
 
 int main(void) {
     printf("Hi from example target program\n");
-    test();
 
     return 0;
 }

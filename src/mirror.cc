@@ -4,6 +4,8 @@
 #include <tree-pass.h>
 #include <gimple.h>
 #include <context.h>
+#include <stringpool.h>
+#include <attribs.h>
 #include <tree-pretty-print.h>
 
 #define ATTRIBUTE_NAME "mirrored"
@@ -25,34 +27,49 @@ static struct plugin_gcc_version plugin_version = {
     .basever = PLUGIN_GCC_BASEVER
 };
 
-static unsigned int test(void) {
-    printf("test\n");
+static unsigned int examine(void) {
+    tree fndef = current_function_decl;
+#ifdef DEBUG
+    printf("%s\n", IDENTIFIER_POINTER(DECL_NAME(fndef)));
+#endif
+
+    tree attrlist = DECL_ATTRIBUTES(fndef);
+    tree attr = lookup_attribute(ATTRIBUTE_NAME, attrlist);
+    if(attr == NULL_TREE)
+        return 0;
+
+#ifdef DEBUG
+    printf("\tattribute \"%s\" found\n", ATTRIBUTE_NAME);
+#endif
+
+    basic_block entry = ENTRY_BLOCK_PTR_FOR_FN(cfun)->next_bb;
+    // gimple *first_
 
     return 0;
 }
 
-class gimple_pass : public gimple_opt_pass {
-    public:
+struct gimple_pass : public gimple_opt_pass {
+    gimple_pass (const pass_data& data, gcc::context *ctxt) : gimple_opt_pass (data, ctxt) {}
 
-        gimple_pass (const pass_data& data, gcc::context *ctxt) : gimple_opt_pass (data, ctxt) {}
+    bool gate (function* gate_fun) {
+        return true;
+    }
 
-        bool gate (function* gate_fun) {
-            return true;
-        }
-
-        unsigned int execute(function* exec_fun) {
-            return test();
-        }
+    unsigned int execute(function* exec_fun) {
+        return examine();
+    }
 };
 
 static tree handle_mirror_attribute(tree *node, tree name, tree args, int flags, bool *no_add_attrs) {
-    printf("Found attribute\n");
+#ifdef DEBUG
+    printf("Found attribute, %s\n", name);
 
     printf("\tnode = ");
-    print_generic_stmt(stdout, *node, TDF_NONE);
+    print_generic_stmt(stdout, node[0], TDF_NONE);
 
     printf("\tname = ");
     print_generic_stmt(stdout, name, TDF_NONE);
+#endif
 
     return NULL_TREE;
 }
@@ -61,10 +78,10 @@ static void register_attr(void *gcc_data, void *user_data) {
     static struct attribute_spec attr = {
         .name = ATTRIBUTE_NAME,
         .min_length = 0,
-        .max_length = 0, // strlen(ATTRIBUTE_NAME)?
+        .max_length = (int)strlen(ATTRIBUTE_NAME),
                          // TODO: change when starting more support
         .decl_required = false,
-        .type_required = true,
+        .type_required = false,
         .function_type_required = false,
         .affects_type_identity = false, // ?
         .handler = handle_mirror_attribute,
@@ -99,8 +116,8 @@ int plugin_init(struct plugin_name_args *plugin_info, struct plugin_gcc_version 
         .ref_pass_instance_number = 1,
         .pos_op = PASS_POS_INSERT_AFTER
     };
-    register_callback(PLUGIN_NAME, PLUGIN_PASS_MANAGER_SETUP, NULL, &pass_info);
 
+    register_callback(PLUGIN_NAME, PLUGIN_PASS_MANAGER_SETUP, NULL, &pass_info);
     register_callback(PLUGIN_NAME, PLUGIN_ATTRIBUTES, register_attr, NULL);
 
     return 0;
