@@ -27,68 +27,43 @@ static struct plugin_gcc_version plugin_version = {
     .basever = PLUGIN_GCC_BASEVER
 };
 
-static unsigned int examine(void) {
-    tree fndef = current_function_decl;
-#ifdef DEBUG
-    printf("%s\n", IDENTIFIER_POINTER(DECL_NAME(fndef)));
-#endif
-
-    tree attrlist = DECL_ATTRIBUTES(fndef);
-    tree attr = lookup_attribute(ATTRIBUTE_NAME, attrlist);
-    if(attr == NULL_TREE)
-        return 0;
-
-#ifdef DEBUG
-    printf("\tattribute \"%s\" found\n", ATTRIBUTE_NAME);
-#endif
-
-    basic_block entry = ENTRY_BLOCK_PTR_FOR_FN(cfun)->next_bb;
-    // gimple *first_
-
-    return 0;
-}
-
-struct gimple_pass : public gimple_opt_pass {
-    gimple_pass (const pass_data& data, gcc::context *ctxt) : gimple_opt_pass (data, ctxt) {}
-
-    bool gate (function* gate_fun) {
-        return true;
-    }
-
-    unsigned int execute(function* exec_fun) {
-        return examine();
-    }
-};
-
-static tree handle_mirror_attribute(tree *node, tree name, tree args, int flags, bool *no_add_attrs) {
-#ifdef DEBUG
-    printf("Found attribute, %s\n", name);
-
-    printf("\tnode = ");
-    print_generic_stmt(stdout, node[0], TDF_NONE);
-
-    printf("\tname = ");
-    print_generic_stmt(stdout, name, TDF_NONE);
-#endif
-
-    return NULL_TREE;
-}
-
 static void register_attr(void *gcc_data, void *user_data) {
     static struct attribute_spec attr = {
         .name = ATTRIBUTE_NAME,
+        // TODO: maybe some args for different reflection functionality
         .min_length = 0,
-        .max_length = (int)strlen(ATTRIBUTE_NAME),
-                         // TODO: change when starting more support
+        .max_length = 0,
         .decl_required = false,
         .type_required = false,
         .function_type_required = false,
-        .affects_type_identity = false, // ?
-        .handler = handle_mirror_attribute,
+        .affects_type_identity = false,
+        .handler = NULL,
         .exclude = NULL
     };
 
     register_attribute(&attr);
+}
+
+static void mirror(void *gcc_data, void *user_data) {
+    tree type = (tree)gcc_data;
+    if(!RECORD_OR_UNION_CHECK(type) || TREE_CODE(type) != RECORD_TYPE || TYPE_FIELDS(type) == NULL_TREE)
+        return;
+
+    tree attr = lookup_attribute(ATTRIBUTE_NAME, TYPE_ATTRIBUTES(type));
+    if(attr == NULL_TREE)
+        return;
+    print_generic_stmt(stdout, type);
+
+    if(!COMPLETE_TYPE_P(type))
+        return;
+
+    // tree name = TYPE_IDENTIFIER(type);
+    // if(name == NULL)
+    //     return;
+    // const char *name_ser = IDENTIFIER_POINTER(name);
+    // printf("%s\n", name_ser);
+
+    print_generic_stmt(stdout, type->type_common.size);
 }
 
 int plugin_init(struct plugin_name_args *plugin_info, struct plugin_gcc_version *version) {
@@ -98,27 +73,8 @@ int plugin_init(struct plugin_name_args *plugin_info, struct plugin_gcc_version 
     register_callback(PLUGIN_NAME, PLUGIN_INFO, NULL, &plugin_info);
     printf("loaded gcc plugin: %s v%s\n", PLUGIN_NAME, PLUGIN_VERSION);
 
-    struct pass_data pass_data =  {
-        .type = GIMPLE_PASS,
-        .name = PLUGIN_NAME,
-        .optinfo_flags = OPTGROUP_NONE,
-        .tv_id = TV_NONE,
-        .properties_required = PROP_gimple_any,
-        .properties_provided = 0,
-        .properties_destroyed = 0,
-        .todo_flags_start = 0,
-        .todo_flags_finish = TODO_update_ssa | TODO_cleanup_cfg
-    };
-
-    struct register_pass_info pass_info = {
-        .pass = new gimple_pass(pass_data, g),
-        .reference_pass_name = "ssa",
-        .ref_pass_instance_number = 1,
-        .pos_op = PASS_POS_INSERT_AFTER
-    };
-
-    register_callback(PLUGIN_NAME, PLUGIN_PASS_MANAGER_SETUP, NULL, &pass_info);
     register_callback(PLUGIN_NAME, PLUGIN_ATTRIBUTES, register_attr, NULL);
+    register_callback(PLUGIN_NAME, PLUGIN_FINISH_TYPE, mirror, NULL);
 
     return 0;
 }
